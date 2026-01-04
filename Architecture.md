@@ -420,7 +420,7 @@ typedef enum logic [2:0] {
   CMD_WRITE     = 3'b100,
   CMD_PRECHARGE = 3'b010,
   CMD_REFRESH   = 3'b001
-} cmd_t;
+} ddr3_cmd_t;
 
 `endif
 ```
