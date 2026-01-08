@@ -66,12 +66,12 @@ typedef enum logic [2:0] {
 //=============================================================================
 
 typedef enum logic [2:0] {
-    BANK_IDLE        = 3'b000,  // No row open, ready for ACTIVATE
-    BANK_ACTIVATING  = 3'b001,  // ACTIVATE issued, waiting tRCD
-    BANK_ACTIVE      = 3'b010,  // Row open, can READ/WRITE
-    BANK_READING     = 3'b011,  // READ in progress
-    BANK_WRITING     = 3'b100,  // WRITE in progress
-    BANK_PRECHARGING = 3'b101   // PRECHARGE issued, waiting tRP
+    IDLE        = 3'b000,  // No row open, ready for ACTIVATE
+    ACTIVATING  = 3'b001,  // ACTIVATE issued, waiting tRCD
+    ACTIVE      = 3'b010,  // Row open, can READ/WRITE
+    READING     = 3'b011,  // READ in progress
+    WRITING     = 3'b100,  // WRITE in progress
+    PRECHARGING = 3'b101   // PRECHARGE issued, waiting tRP
 } bank_state_t;
 
 //=============================================================================
