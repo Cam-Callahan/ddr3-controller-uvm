@@ -75,6 +75,16 @@ typedef enum logic [2:0] {
     WRITING     = 3'b100,  // WRITE in progress
     PRECHARGING = 3'b101   // PRECHARGE issued, waiting tRP
 } bank_state_t;
+//=============================================================================
+// Refresh State Machine States
+//=============================================================================
+
+typedef enum logic [1:0] {
+    COUNTING = 2'b00,
+    WAITING = 2'b01,
+    REFRESHING = 2'b10
+} refresh_state_t;
+
 
 //=============================================================================
 // Internal Request Types
