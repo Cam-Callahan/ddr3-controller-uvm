@@ -1,5 +1,5 @@
 //ddr3_if.sv
-`inlcude "ddr3_defs.svh"
+`include "ddr3_defs.svh"
 
 interface ddr3_if(
         input logic clk,
@@ -8,7 +8,7 @@ interface ddr3_if(
 
 
 //=========================================================================
-// User Request Interface (TB → Controller)
+// User Request Interface
 //=========================================================================
     logic user_req_valid; // TB -> controller (I have a request)
     logic user_req_ready; // Controller -> TB (I can accept)
@@ -17,7 +17,14 @@ interface ddr3_if(
     logic [ROW_BITS-1:0] user_req_row;
     logic [COL_BITS-1:0] user_req_col;
     logic [DATA_WIDTH-1:0] user_req_wdata;
-
+//=========================================================================
+// FMS Output Signals
+//=========================================================================
+    logic cmd_valid;
+    ddr3_cmd_t cmd_type;
+    logic [ADDR_WIDTH-1:0] cmd_addr;
+    bank_state_t state;
+    logic busy;
 //=========================================================================
 // User Response (Controller → TB)
 //=========================================================================
@@ -30,7 +37,7 @@ interface ddr3_if(
     logic ddr3_cas_n;
     logic ddr3_we_n;
     logic [1:0] ddr3_ba;
-    logic [DDR3_ADDR_WIDTH-1:0] ddr3_addr;
+    logic [ADDR_WIDTH-1:0] ddr3_addr;
     logic [DATA_WIDTH-1:0] ddr3_dq;
     logic ddr3_dqs;
 //=========================================================================
@@ -83,7 +90,24 @@ modport tb(
 
     //response interface
     input user_resp_valid,
-    input user_resp_rdata, //read data from dut
+    input user_resp_rdata //read data from dut
 
+);
+modport fsm (
+    input clk,
+    input rst_n,
+
+    input  user_req_valid,  //high when tb has a request for the dut
+    input  user_req_rnw,    //1 = read, 0 = write
+    input  user_req_bank,
+    input  user_req_row,
+    input  user_req_col,
+
+    output  user_req_ready, //high when dut is ready for tb request
+    output cmd_valid,
+    output cmd_type,
+    output cmd_addr,
+    output state,
+    output busy
 );
 endinterface : ddr3_if

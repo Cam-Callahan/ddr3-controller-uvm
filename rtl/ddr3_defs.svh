@@ -7,6 +7,8 @@
 `ifndef DDR3_DEFS_SVH
 `define DDR3_DEFS_SVH
 
+package ddr3_pkg;
+
 //=============================================================================
 // Memory Geometry Parameters
 //=============================================================================
@@ -118,5 +120,7 @@ endfunction
 parameter int TOTAL_ROWS     = 2**ROW_BITS;
 parameter int TOTAL_COLS     = 2**COL_BITS;
 parameter int TOTAL_CAPACITY = NUM_BANKS * TOTAL_ROWS * TOTAL_COLS * DATA_WIDTH; // bits
+
+endpackage : ddr3_pkg
 
 `endif // DDR3_DEFS_SVH

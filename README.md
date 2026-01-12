@@ -4,6 +4,8 @@ A SystemVerilog implementation of a DDR3 SDRAM memory controller with comprehens
 
 ## 🎯 Project Overview
 
+**Status:** Bank FSM Complete (Jan 10,2026)
+
 This project implements a simplified DDR3 memory controller designed to interface with a 1Gb x8 DDR3 SDRAM device. The controller manages bank state machines, enforces timing constraints, and provides a simple request/response interface for read/write operations.
 
 **Target Interview Companies:** AMD, Intel, NVIDIA
@@ -106,26 +108,20 @@ ddr3-controller-uvm/
 ### Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/[your-username]/ddr3-controller-uvm.git
-cd ddr3-controller-uvm
+# Clone repository
+git clone
+cd DDR3-CONTROLLER-UVM
 
-# Run basic sanity test
-cd sim
-make sanity
-
-# Run all tests
-make all
-
-# View coverage report
-make coverage
+# Run bank FSM simulation
+cd sim/run_files
+vsim -do fsm_run_gui.do
 ```
 
 ## 📈 Development Phases
 
 ### Phase 1: RTL Design (Week 1-2)
 - [x] Project planning and architecture
-- [ ] Bank FSM implementation
+- [x] Bank FSM implementation
 - [ ] Command generator
 - [ ] Refresh controller
 - [ ] Top-level integration
@@ -145,6 +141,19 @@ make coverage
 - [ ] Constrained-random testing
 - [ ] Corner case scenarios
 - [ ] Documentation and polish
+
+##Key Features
+
+###Bank FSM
+- ✅ DDR3-800 timing compliance (tRCD=6, tRAS=15, tRP=6 cycles)
+- ✅ Row buffer optimization (2-cycle row hits vs 9-cycle first access)
+- ✅ Automatic row miss handling with precharge/reactivate
+- ✅ 4-state FSM (IDLE, ACTIVATING, ACTIVE, PRECHARGING)
+
+## Documentation
+
+- [Bank FSM Design Document](docs/bank_fsm_design.md)
+- [Bank FSM Verification Report](docs/bank_fsm_verification.md)
 
 ## 🎓 Learning Objectives
 
@@ -185,7 +194,7 @@ This project demonstrates:
 
 **Cameron Callahan**
 Electrical Engineering Graduate - Texas State University
-[camcallahan2001@outlook.com] | [LinkedIn] | [GitHub]
+[camcallahan2001@outlook.com] | [https://www.linkedin.com/in/cameron-callahan-461b78249] | [GitHub]
 
 ---
 

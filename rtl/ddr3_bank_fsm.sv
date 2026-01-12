@@ -12,7 +12,7 @@
      Issues Commands( ACTIVATE, READ,WRITE ,PRECHARGE)
  */
 
- `include "ddr3_defs.svh"
+import ddr3_pkg::*;
 
 module ddr3_bank_fsm #(
     parameter int BANK_ID = 0
@@ -36,7 +36,7 @@ module ddr3_bank_fsm #(
 
     // status outputs
     output bank_state_t state,                      //current state (for monitor)
-    output logic        busy,                       // Bank is busy (not idle)
+    output logic        busy                       // Bank is busy (not idle)
 
 );
 
@@ -68,15 +68,15 @@ logic           trp_met;
 //continuous assigns for flags
 assign trcd_met = (trcd_counter == 0);
 assign tras_met = (tRAS_counter >= tRAS_CYCLES);
-assign trp_met = (trp_counter == 0);
+assign trp_met = (tRP_counter == 0);
 
-always_ff (@posedge clk or negedge rst_n) begin //async reset
+always_ff @(posedge clk or negedge rst_n) begin //async reset
     if(!rst_n)begin
         //init state register
         state <= IDLE;
         //init counter registers
         trcd_counter <= 4'h0;
-        tRAS_counter <= 5'b00000;
+        tRAS_counter <= 5'd0;
         tRP_counter <= 4'h0;
         //init request tracking registers
         open_row <= '0;
@@ -110,7 +110,10 @@ always_ff (@posedge clk or negedge rst_n) begin //async reset
         end
         //update open row
         if (cmd_valid && cmd_type == CMD_ACTIVATE) begin
-            open_row <= my_req_row;
+            open_row <= req_row;
+        end
+        if (cmd_valid && cmd_type == CMD_PRECHARGE) begin
+            open_row <= '0;
         end
     //=========================================================================
     // Timing counters Register logic
@@ -161,7 +164,7 @@ always_comb begin : fsm
 
         case(state)
         IDLE: begin
-            if (user_req_valid) begin
+            if (user_req_valid || pending_req) begin //ADD LOGIC TO CHECK FOR PENDING REQUEST
                 busy = 1'b1;
                 user_req_ready = 1'b0;
                 cmd_valid = 1'b1;               //we have a cmd for cmd_gen
@@ -184,7 +187,7 @@ always_comb begin : fsm
                 user_req_ready = 1'b0;
                 if (my_req_row == open_row)begin //row hit
                     cmd_valid = 1'b1;
-                    cmd_type = my_req_rnw ? CMD_READ : CMD_WRITE;
+                    cmd_type = my_rnw ? CMD_READ : CMD_WRITE;
                     cmd_addr = {3'b000,my_req_col};
                     next_state = ACTIVE;
                     //add logic for if we want to leave active after a write/read
@@ -209,10 +212,9 @@ always_comb begin : fsm
             cmd_valid = 1'b0;
             cmd_type = CMD_NOP;
             next_state = IDLE;
-            cmd_addr = ADDR_WIDTH'b0;
+            cmd_addr = 13'b0;
             busy = 1'b0;
         end
-
         endcase
 end
 endmodule
