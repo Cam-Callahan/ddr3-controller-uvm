@@ -1,0 +1,183 @@
+//ddr3_cmd_gen.sv
+import ddr3_pkg::*;
+
+module cmd_gen(
+//input from TB
+    input logic clk,
+    input logic rst_n,
+//input from bank_fsm
+    input logic [3:0] bank_cmd_valid,
+    input ddr3_cmd_t bank_cmd_type[4],
+    input logic [12:0] bank_addr[4],
+//input from top-level
+
+//input from refresh_fsm
+    input logic     refresh_req,
+    input logic     refresh_cmd_valid,
+//output to ddr3 PHY (model in TB)
+    output logic ddr3_ras_n,
+    output logic ddr3_cas_n,
+    output logic ddr3_we_n,
+    output logic [1:0] ddr3_ba,
+    output logic [12:0] ddr3_addr
+);
+//internal registers
+current_bank_t prio_bank,next_bank,sel_bank;
+logic bank_selected;
+//=============================================================================
+//
+//=============================================================================
+always_ff@(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        prio_bank <= BANK_0;
+    end else begin
+        prio_bank <= next_bank;
+    end
+end
+//=============================================================================
+// Current Bank Arbitration
+//=============================================================================
+always_comb begin
+    sel_bank = BANK_0;
+    bank_selected = 1'b0;
+    case (prio_bank)
+        BANK_0: begin
+            if(bank_cmd_valid[0]) begin
+                sel_bank = BANK_0;
+                bank_selected = 1'b1;
+            end
+            else if (bank_cmd_valid[1]) begin
+                sel_bank = BANK_1;
+                bank_selected = 1'b1;
+            end
+            else if (bank_cmd_valid[2]) begin
+                sel_bank = BANK_2;
+                bank_selected = 1'b1;
+            end
+            else if (bank_cmd_valid[3]) begin
+                sel_bank = BANK_3;
+                bank_selected = 1'b1;
+            end
+        end
+        BANK_1: begin
+            if(bank_cmd_valid[1]) begin
+                sel_bank = BANK_1;
+                bank_selected = 1'b1;
+            end
+            else if (bank_cmd_valid[2]) begin
+                sel_bank = BANK_2;
+                bank_selected = 1'b1;
+            end
+            else if (bank_cmd_valid[3]) begin
+                sel_bank = BANK_3;
+                bank_selected = 1'b1;
+            end
+            else if (bank_cmd_valid[0]) begin
+                sel_bank = BANK_0;
+                bank_selected = 1'b1;
+            end
+        end
+        BANK_2: begin
+            if(bank_cmd_valid[2]) begin
+                sel_bank = BANK_2;
+                bank_selected = 1'b1;
+            end
+            else if (bank_cmd_valid[3]) begin
+                sel_bank = BANK_3;
+                bank_selected = 1'b1;
+            end
+            else if (bank_cmd_valid[0]) begin
+                sel_bank = BANK_0;
+                bank_selected = 1'b1;
+            end
+            else if (bank_cmd_valid[1]) begin
+                sel_bank = BANK_1;
+                bank_selected = 1'b1;
+            end
+        end
+        BANK_3: begin
+            if(bank_cmd_valid[3]) begin
+                sel_bank = BANK_3;
+                bank_selected = 1'b1;
+            end
+            else if(bank_cmd_valid[0]) begin
+                sel_bank = BANK_0;
+                bank_selected = 1'b1;
+            end
+            else if (bank_cmd_valid[1]) begin
+                sel_bank = BANK_1;
+                bank_selected = 1'b1;
+            end
+            else if (bank_cmd_valid[2]) begin
+                sel_bank = BANK_2;
+                bank_selected = 1'b1;
+            end
+        end
+        default:begin
+                    sel_bank = BANK_0;
+                    bank_selected = 1'b0;
+                end
+
+    endcase
+end
+//=============================================================================
+//
+//=============================================================================
+always_comb begin
+    //Defaults
+    ddr3_ras_n = 1'b1;
+    ddr3_cas_n = 1'b1;
+    ddr3_we_n = 1'b1;
+    ddr3_ba = 2'b00;
+    ddr3_addr = 13'b0;
+    next_bank = prio_bank;
+
+    if(refresh_req) begin
+        ddr3_ras_n = 1'b0;
+        ddr3_cas_n = 1'b0;
+        ddr3_we_n = 1'b1;
+        ddr3_ba = 2'b00;  // dont care for refresh
+        ddr3_addr = 13'b0; //dont care for refresh
+        next_bank = prio_bank;
+    end else if (bank_selected) begin
+                    ddr3_ba = 2'(sel_bank);
+                    ddr3_addr = bank_addr[2'(sel_bank)];
+                   case (bank_cmd_type[2'(sel_bank)])
+                    CMD_NOP: begin
+                        ddr3_ras_n = 1'b1;
+                        ddr3_cas_n = 1'b1;
+                        ddr3_we_n = 1'b1;
+                    end
+                    CMD_ACTIVATE: begin
+                        ddr3_ras_n = 1'b0;
+                        ddr3_cas_n = 1'b1;
+                        ddr3_we_n = 1'b1;
+                    end
+                    CMD_READ: begin
+                        ddr3_ras_n = 1'b1;
+                        ddr3_cas_n = 1'b0;
+                        ddr3_we_n = 1'b1;
+                    end
+                    CMD_WRITE: begin
+                        ddr3_ras_n = 1'b1;
+                        ddr3_cas_n = 1'b0;
+                        ddr3_we_n = 1'b0;
+                    end
+                    CMD_PRECHARGE: begin
+                        ddr3_ras_n = 1'b0;
+                        ddr3_cas_n = 1'b1;
+                        ddr3_we_n = 1'b0;
+                    end
+                    default: begin
+                        ddr3_ras_n = 1'b1;
+                        ddr3_cas_n = 1'b1;
+                        ddr3_we_n = 1'b1;
+                    end
+                   endcase
+
+                next_bank = sel_bank + 1;
+        end else begin
+                next_bank = prio_bank;
+            end
+end
+endmodule : cmd_gen
