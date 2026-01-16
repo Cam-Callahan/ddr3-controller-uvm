@@ -1,4 +1,3 @@
-
 /*
  * ddr3_refresh_fsm.sv
  * DDR3 Refresh
@@ -11,7 +10,7 @@
     issue CMD_REFRESH to cmd_gen when refresh is needed
     issue refresh flag to bank_fsm when refresh is imminent
  */
-`import ddr3_pkg::*;
+import ddr3_pkg::*;
 
 module refresh_fsm(
 //input logic from TB
@@ -27,7 +26,6 @@ module refresh_fsm(
 
 
 //interface to cmd_gen
-    output ddr3_cmd_t refresh_req,
     output logic refresh_cmd_valid
 );
 
@@ -75,7 +73,6 @@ end
 always_comb begin
     //defaults
     refresh_cmd_valid = 1'b0;
-    refresh_req = CMD_NOP;
     refresh_imminent = 1'b0;
     ddr_refresh = 1'b0;
     ref_next_state = ref_state;
@@ -83,8 +80,9 @@ always_comb begin
         COUNTING: begin
             if (refresh_due) begin
                 ref_next_state = WAITING;
+                 refresh_imminent = 1'b1;
             end else begin
-                if (tREFI_counter == (tREFI_CYCLES - 10)) begin //ISSUE WARNING TO FSM/TOPLEVEL TO SET IDLE
+                if (tREFI_counter >= (tREFI_CYCLES - 40)) begin //ISSUE WARNING TO FSM/TOPLEVEL TO SET IDLE
                      refresh_imminent = 1'b1;
                 end
                 ref_next_state = COUNTING;
@@ -94,7 +92,6 @@ always_comb begin
             refresh_imminent = 1'b1;
             if(all_IDLE)begin
                 refresh_cmd_valid = 1'b1;
-                refresh_req = CMD_REFRESH;
                 ddr_refresh = 1'b1; // tell the top-level all banks are refreshing
                 ref_next_state = REFRESHING;
             end else begin

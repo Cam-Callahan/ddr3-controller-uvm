@@ -15,7 +15,7 @@
 import ddr3_pkg::*;
 
 module ddr3_bank_fsm #(
-    parameter int BANK_ID = 0
+    parameter bank_t BANK_ID = BANK_0
 )(
     input logic clk,
     input logic rst_n,
@@ -29,14 +29,16 @@ module ddr3_bank_fsm #(
     output logic        user_req_ready,                  // bank fsm can accept req from top-level
 
     //interface to cmd_gen
-
+    input bank_t        next_prio_bank,             //next priority bank for cmd_generator
     output logic        [ADDR_WIDTH-1:0] cmd_addr,  // address for the command
     output logic        cmd_valid,                  // bank_fsm has a cmd for the cmd_gen
     output ddr3_cmd_t   cmd_type,                        //command type (ACTIVATE, ACTIVATING, READ, WRITE, PRECHARGE)
-
+    input logic [3:0] bank_cmd_ready,
     // status outputs
     output bank_state_t state,                      //current state (for monitor)
-    output logic        busy                       // Bank is busy (not idle)
+    output logic        busy,                       // Bank is busy (not idle)
+    //interface with refresh_fsm
+    input logic refresh_imminent
 
 );
 
@@ -64,6 +66,10 @@ logic           tras_met;
 //tRP Counter (time after issuing precharge cmd before returning to idle)
 logic           [3:0] tRP_counter;
 logic           trp_met;
+// additional state transition logic
+logic skip_cycle;
+logic advance;
+logic force_idle;
 
 //continuous assigns for flags
 assign trcd_met = (trcd_counter == 0);
@@ -105,14 +111,14 @@ always_ff @(posedge clk or negedge rst_n) begin //async reset
             my_rnw <= req_rnw;
         end
         //clear pending flag after req is finsished
-        if(state == ACTIVE && cmd_valid && (cmd_type == CMD_READ || cmd_type == CMD_WRITE))begin
+        if(state == ACTIVE && cmd_valid && (cmd_type == CMD_READ || cmd_type == CMD_WRITE) && advance)begin
             pending_req <= 1'b0;
         end
         //update open row
-        if (cmd_valid && cmd_type == CMD_ACTIVATE) begin
-            open_row <= req_row;
+        if (cmd_valid && cmd_type == CMD_ACTIVATE && advance) begin
+            open_row <= my_req_row;
         end
-        if (cmd_valid && cmd_type == CMD_PRECHARGE) begin
+        if (cmd_valid && cmd_type == CMD_PRECHARGE && advance) begin
             open_row <= '0;
         end
     //=========================================================================
@@ -125,13 +131,15 @@ always_ff @(posedge clk or negedge rst_n) begin //async reset
             trcd_counter <= trcd_counter - 1;
         end
         //load tRCD_CYCLES(6) into counter register as soon as CMD_ACTIVATE is issued
-        else if (state == IDLE && cmd_valid && cmd_type == CMD_ACTIVATE)begin
-            trcd_counter <= tRCD_CYCLES;
+        else if (next_state == ACTIVATING && cmd_valid && cmd_type == CMD_ACTIVATE)begin
+            trcd_counter <= skip_cycle ? (tRCD_CYCLES - 1) : tRCD_CYCLES;
         end
         //tRAS logic
         // start count up as soon as state is ACTIVATING and continue count up into ACTIVE state
         if (state == ACTIVATING || state == ACTIVE) begin
             tRAS_counter <= tRAS_counter + 1;
+        end else if (next_state == ACTIVATING && skip_cycle) begin
+            tRAS_counter <= 5'h1;
         end
         //load tRAS_CYCLES(15) into counter register
         else begin
@@ -142,9 +150,10 @@ always_ff @(posedge clk or negedge rst_n) begin //async reset
             tRP_counter <= tRP_counter - 1;
         end
         //load tRP_CYCLES(6) into counter register as soon as CMD_PRECHARGE has been issued
-        else if (cmd_valid && cmd_type == CMD_PRECHARGE)begin
-            tRP_counter <= tRP_CYCLES;
+        else if (cmd_valid && cmd_type == CMD_PRECHARGE && advance)begin
+            tRP_counter <= skip_cycle ? (tRP_CYCLES-1) : tRP_CYCLES;
         end
+
     end
 end
 
@@ -161,19 +170,34 @@ always_comb begin : fsm
     cmd_addr = '0;
     user_req_ready = 1'b0;
     busy = 1'b0;
+    skip_cycle = 1'b0;
+    advance = 1'b0;
 
         case(state)
         IDLE: begin
-            if (user_req_valid || pending_req) begin //ADD LOGIC TO CHECK FOR PENDING REQUEST
-                busy = 1'b1;
+            if (refresh_imminent) begin
                 user_req_ready = 1'b0;
-                cmd_valid = 1'b1;               //we have a cmd for cmd_gen
-                cmd_type = CMD_ACTIVATE;        //cmd is to activate
-                cmd_addr = req_row;             //activate this row
-                next_state = ACTIVATING;        //state for fsm should be activating at next clk
+                next_state = IDLE;
+                busy = 1'b1;
+            end else if (user_req_valid || pending_req) begin
+                    cmd_valid = 1'b1;               //we have a cmd for cmd_gen
+                    cmd_type = CMD_ACTIVATE;        //cmd is to activate
+                    busy = 1'b1;
+                    user_req_ready = 1'b0;
+                    cmd_addr = req_row;
+                if(next_prio_bank == BANK_ID) begin //transition state this cycle
+                    next_state = ACTIVATING;        //state for fsm should be activating at next clk
+                    advance = 1'b1;
+                end else if (bank_cmd_ready[BANK_ID]) begin
+                    advance = 1'b1;
+                    next_state = ACTIVATING;
+                    skip_cycle = 1'b1;
+                end else begin
+                    next_state = IDLE;
+                end
             end else begin
-                user_req_ready = 1'b1;
-                busy = 1'b0;
+                    user_req_ready = 1'b1;
+                    busy = 1'b0;
             end
         end
         ACTIVATING:begin
@@ -185,22 +209,44 @@ always_comb begin : fsm
 
             if (pending_req) begin
                 user_req_ready = 1'b0;
-                if (my_req_row == open_row)begin //row hit
-                    cmd_valid = 1'b1;
-                    cmd_type = my_rnw ? CMD_READ : CMD_WRITE;
-                    cmd_addr = {3'b000,my_req_col};
-                    next_state = ACTIVE;
-                    //add logic for if we want to leave active after a write/read
-                end else begin //row miss, must precharge (close row)
-                    if (tras_met) begin
-                        next_state = PRECHARGING;
+                    if (my_req_row == open_row)begin //row hit
                         cmd_valid = 1'b1;
-                        cmd_type = CMD_PRECHARGE;
-                        cmd_addr = '0;
+                        cmd_type = my_rnw ? CMD_READ : CMD_WRITE;
+                        cmd_addr = {3'b000,my_req_col};
+                        if(next_prio_bank == BANK_ID || bank_cmd_ready[BANK_ID]) begin
+                            next_state = ACTIVE;
+                            advance = 1'b1;
+                        end else begin //if
+                            advance = 1'b0;
+                            next_state = ACTIVE;
+                        end
+
+                    end else begin //row miss, must precharge (close row)
+                        if (tras_met) begin
+                            cmd_valid = 1'b1;
+                            cmd_type = CMD_PRECHARGE;
+                            cmd_addr = '0;
+                            if(next_prio_bank == BANK_ID ) begin
+                                next_state = PRECHARGING;
+                                advance = 1'b1;
+                            end else if (bank_cmd_ready[BANK_ID])begin
+                                next_state = PRECHARGING;
+                                advance = 1'b1;
+                                skip_cycle = 1'b1;
+                            end else begin
+                                next_state = ACTIVE;
+                                advance = 1'b0;
+                            end
+
+                        end
                     end
-                end
+
             end else begin
+                if(refresh_warnig) begin
+                    user_req_ready = 1'b0;
+                end else begin
                 user_req_ready = 1'b1;
+                end
             end
         end
         PRECHARGING:begin
@@ -218,3 +264,4 @@ always_comb begin : fsm
         endcase
 end
 endmodule
+

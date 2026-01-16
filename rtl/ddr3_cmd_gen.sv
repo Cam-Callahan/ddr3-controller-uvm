@@ -1,4 +1,17 @@
-//ddr3_cmd_gen.sv
+/*
+ * ddr3_cmd_gen.sv
+ * DDR3 Command Generator
+ *
+ * Author: Cameron Callahan
+ * Date: Jan 13, 2026
+ *
+ * Description:
+    receive commands from each of the 4 banks
+    arbitrate between which banks have priority
+    Execute the commands given by priority bank
+    recieve commands from refresh_fsm
+    send refresh commands (refresh has highest prio)
+ */
 import ddr3_pkg::*;
 
 module cmd_gen(
@@ -9,10 +22,10 @@ module cmd_gen(
     input logic [3:0] bank_cmd_valid,
     input ddr3_cmd_t bank_cmd_type[4],
     input logic [12:0] bank_addr[4],
-//input from top-level
-
+//output to Bank_fsm
+    output logic [3:0] bank_cmd_ready,
+    output bank_t next_prio_bank,
 //input from refresh_fsm
-    input logic     refresh_req,
     input logic     refresh_cmd_valid,
 //output to ddr3 PHY (model in TB)
     output logic ddr3_ras_n,
@@ -22,8 +35,12 @@ module cmd_gen(
     output logic [12:0] ddr3_addr
 );
 //internal registers
-current_bank_t prio_bank,next_bank,sel_bank;
+bank_t prio_bank,next_bank,sel_bank;
 logic bank_selected;
+//=============================================================================
+//  Assigns
+//=============================================================================
+assign next_prio_bank = next_bank;
 //=============================================================================
 //
 //=============================================================================
@@ -121,10 +138,11 @@ always_comb begin
     endcase
 end
 //=============================================================================
-//
+//  Command
 //=============================================================================
 always_comb begin
     //Defaults
+    bank_cmd_ready = 4'b0000;
     ddr3_ras_n = 1'b1;
     ddr3_cas_n = 1'b1;
     ddr3_we_n = 1'b1;
@@ -132,7 +150,8 @@ always_comb begin
     ddr3_addr = 13'b0;
     next_bank = prio_bank;
 
-    if(refresh_req) begin
+
+    if(refresh_cmd_valid) begin
         ddr3_ras_n = 1'b0;
         ddr3_cas_n = 1'b0;
         ddr3_we_n = 1'b1;
@@ -142,6 +161,7 @@ always_comb begin
     end else if (bank_selected) begin
                     ddr3_ba = 2'(sel_bank);
                     ddr3_addr = bank_addr[2'(sel_bank)];
+                    bank_cmd_ready[2'(sel_bank)] = 1'b1;
                    case (bank_cmd_type[2'(sel_bank)])
                     CMD_NOP: begin
                         ddr3_ras_n = 1'b1;

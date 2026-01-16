@@ -92,7 +92,7 @@ typedef enum logic [1:0] {
     BANK_1 = 2'b01,
     BANK_2 = 2'b10,
     BANK_3  = 2'b11
-} current_bank_t;
+} bank_t;
 //=============================================================================
 // Internal Request Types
 //=============================================================================
@@ -141,3 +141,4 @@ parameter int TOTAL_CAPACITY = NUM_BANKS * TOTAL_ROWS * TOTAL_COLS * DATA_WIDTH;
 endpackage : ddr3_pkg
 
 `endif // DDR3_DEFS_SVH
+
