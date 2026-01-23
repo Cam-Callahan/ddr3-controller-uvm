@@ -156,7 +156,6 @@ always_ff @(posedge clk or negedge rst_n) begin //async reset
 
     end
 end
-
     //=========================================================================
     // FSM combinational logic
     //  triggered whenever any internal logic changes
@@ -242,11 +241,27 @@ always_comb begin : fsm
                     end
 
             end else begin
-                if(refresh_warnig) begin
+
+                if(refresh_imminent) begin
                     user_req_ready = 1'b0;
+                    if (tras_met) begin
+                        cmd_valid = 1'b1;
+                        cmd_type = CMD_PRECHARGE;
+                        cmd_addr = '0;
+                        if(next_prio_bank == BANK_ID ) begin
+                            next_state = PRECHARGING;
+                            advance = 1'b1;
+                            end else if (bank_cmd_ready[BANK_ID])begin
+                                next_state = PRECHARGING;
+                                advance = 1'b1;
+                                skip_cycle = 1'b1;
+                            end else begin
+                                advance = 1'b0;
+                            end
+                    end
                 end else begin
-                user_req_ready = 1'b1;
-                end
+                        user_req_ready = 1'b1;
+                        end
             end
         end
         PRECHARGING:begin

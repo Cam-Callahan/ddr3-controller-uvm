@@ -52,91 +52,21 @@ always_ff@(posedge clk or negedge rst_n) begin
     end
 end
 //=============================================================================
-// Current Bank Arbitration
+// selected Bank Arbitration
 //=============================================================================
 always_comb begin
     sel_bank = BANK_0;
     bank_selected = 1'b0;
-    case (prio_bank)
-        BANK_0: begin
-            if(bank_cmd_valid[0]) begin
-                sel_bank = BANK_0;
-                bank_selected = 1'b1;
-            end
-            else if (bank_cmd_valid[1]) begin
-                sel_bank = BANK_1;
-                bank_selected = 1'b1;
-            end
-            else if (bank_cmd_valid[2]) begin
-                sel_bank = BANK_2;
-                bank_selected = 1'b1;
-            end
-            else if (bank_cmd_valid[3]) begin
-                sel_bank = BANK_3;
-                bank_selected = 1'b1;
-            end
-        end
-        BANK_1: begin
-            if(bank_cmd_valid[1]) begin
-                sel_bank = BANK_1;
-                bank_selected = 1'b1;
-            end
-            else if (bank_cmd_valid[2]) begin
-                sel_bank = BANK_2;
-                bank_selected = 1'b1;
-            end
-            else if (bank_cmd_valid[3]) begin
-                sel_bank = BANK_3;
-                bank_selected = 1'b1;
-            end
-            else if (bank_cmd_valid[0]) begin
-                sel_bank = BANK_0;
-                bank_selected = 1'b1;
-            end
-        end
-        BANK_2: begin
-            if(bank_cmd_valid[2]) begin
-                sel_bank = BANK_2;
-                bank_selected = 1'b1;
-            end
-            else if (bank_cmd_valid[3]) begin
-                sel_bank = BANK_3;
-                bank_selected = 1'b1;
-            end
-            else if (bank_cmd_valid[0]) begin
-                sel_bank = BANK_0;
-                bank_selected = 1'b1;
-            end
-            else if (bank_cmd_valid[1]) begin
-                sel_bank = BANK_1;
-                bank_selected = 1'b1;
-            end
-        end
-        BANK_3: begin
-            if(bank_cmd_valid[3]) begin
-                sel_bank = BANK_3;
-                bank_selected = 1'b1;
-            end
-            else if(bank_cmd_valid[0]) begin
-                sel_bank = BANK_0;
-                bank_selected = 1'b1;
-            end
-            else if (bank_cmd_valid[1]) begin
-                sel_bank = BANK_1;
-                bank_selected = 1'b1;
-            end
-            else if (bank_cmd_valid[2]) begin
-                sel_bank = BANK_2;
-                bank_selected = 1'b1;
-            end
-        end
-        default:begin
-                    sel_bank = BANK_0;
-                    bank_selected = 1'b0;
-                end
 
-    endcase
+    for(int i = 0; i < NUM_BANKS; i++) begin
+        bank_t bank_check = bank_t'((prio_bank + i)%NUM_BANKS); //define which bank is begin checked starting with the prio_bank
+        if(bank_cmd_valid[bank_check] && !bank_selected) begin  //if checked bank has a valid cmd and we havent selected a bank
+            sel_bank = bank_check;
+            bank_selected = 1'b1;
+        end
+    end
 end
+
 //=============================================================================
 //  Command
 //=============================================================================
